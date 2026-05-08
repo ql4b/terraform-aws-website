@@ -1,5 +1,3 @@
-
-
 locals {
   fqdn = var.fqdn
 }
