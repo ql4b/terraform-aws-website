@@ -11,6 +11,7 @@ Terraform module that creates a production-ready website with CloudFront CDN, S3
 - **Route53 DNS** alias configuration
 - **HTTPS redirect** enforced
 - **Basic Auth** opt-in — gate non-production sites behind a CloudFront Function
+- **Custom CloudFront Functions** — attach your own redirect/rewrite functions
 - **Standard logging (v2)** opt-in — CloudFront access logs via CloudWatch Logs vended log delivery
 - **Minimal configuration** - just provide FQDN
 
@@ -67,6 +68,50 @@ visitors and crawlers out of a dev/QA site — not to protect sensitive data. Fo
 real auth, use Lambda@Edge with a proper identity provider.
 
 Disabled by default. When enabled, both `username` and `password` are required.
+
+## Custom CloudFront Functions (redirects, rewrites)
+
+To attach your own edge logic — redirects, header rewrites, request
+normalization — create the `aws_cloudfront_function` yourself and pass its ARN
+via `cloudfront_function_associations`. The module does not author the function
+code; you own it and its lifecycle.
+
+```hcl
+resource "aws_cloudfront_function" "redirects" {
+  name    = "myorg-website-redirects"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  code    = file("${path.module}/functions/redirects.js")
+}
+
+module "website" {
+  source = "git::https://github.com/ql4b/terraform-aws-website.git?ref=v1.0.0"
+
+  fqdn = "example.com"
+
+  cloudfront_function_associations = [
+    {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.redirects.arn
+    },
+  ]
+
+  context = {
+    namespace = "myorg"
+    name      = "website"
+  }
+}
+```
+
+`event_type` must be `viewer-request` or `viewer-response`.
+
+**One function per event type.** CloudFront allows only a single function per
+event type on the default cache behavior. Because `basic_auth` occupies
+`viewer-request`, you **cannot** enable `basic_auth` and also pass a
+`viewer-request` function — the module fails at plan time with a clear message.
+If you need both auth and redirects on viewer-request, fold the auth check into
+your own function instead of using `basic_auth`, or move your function to
+`viewer-response`.
 
 ## CloudFront Standard Logging (v2)
 

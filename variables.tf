@@ -25,6 +25,20 @@ variable "basic_auth" {
   }
 }
 
+variable "cloudfront_function_associations" {
+  type = list(object({
+    event_type   = string
+    function_arn = string
+  }))
+  description = "Consumer-supplied CloudFront Functions to attach to the default cache behavior (e.g. redirects, header rewrites). The consumer owns the aws_cloudfront_function resource and passes its ARN. event_type is 'viewer-request' or 'viewer-response'. Note: CloudFront allows only one function per event type; a 'viewer-request' entry here conflicts with basic_auth (fold auth into your own function instead)."
+  default     = []
+
+  validation {
+    condition     = alltrue([for a in var.cloudfront_function_associations : contains(["viewer-request", "viewer-response"], a.event_type)])
+    error_message = "Each cloudfront_function_associations event_type must be 'viewer-request' or 'viewer-response'."
+  }
+}
+
 variable "standard_logging_v2_enabled" {
   type        = bool
   description = "Enable CloudFront standard logging (v2) via CloudWatch Logs vended log delivery. Independent of the CloudPosse module's legacy access logging."

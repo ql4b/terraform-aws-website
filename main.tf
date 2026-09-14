@@ -2,6 +2,34 @@ locals {
   fqdn = var.fqdn
 
   basic_auth_enabled = try(var.basic_auth.enabled, false)
+
+  # Basic Auth occupies the viewer-request event when enabled.
+  basic_auth_association = local.basic_auth_enabled ? [{
+    event_type   = "viewer-request"
+    function_arn = aws_cloudfront_function.basic_auth[0].arn
+  }] : []
+
+  # Merge the module-managed Basic Auth association with consumer-supplied
+  # functions. CloudFront permits only one function per event type, so a
+  # consumer viewer-request function cannot coexist with Basic Auth (guarded
+  # by the precondition on terraform_data.function_association_guard below).
+  function_associations = concat(local.basic_auth_association, var.cloudfront_function_associations)
+
+  # Does the consumer supply a viewer-request function? Used for the guard.
+  consumer_has_viewer_request = length([
+    for a in var.cloudfront_function_associations : a if a.event_type == "viewer-request"
+  ]) > 0
+}
+
+# Fail fast (at plan) if Basic Auth and a consumer viewer-request function
+# would both bind to viewer-request. CloudFront allows only one per event type.
+resource "terraform_data" "function_association_guard" {
+  lifecycle {
+    precondition {
+      condition     = !(local.basic_auth_enabled && local.consumer_has_viewer_request)
+      error_message = "basic_auth is enabled and cloudfront_function_associations also contains a 'viewer-request' function. CloudFront allows only one function per event type. Disable basic_auth and fold the auth check into your own viewer-request function, or move your function to 'viewer-response'."
+    }
+  }
 }
 
 data "aws_route53_zone" "default" {
@@ -37,11 +65,9 @@ module "cdn" {
 
   website_enabled = false
 
-  # Attach the Basic Auth CloudFront Function on viewer-request when enabled.
-  function_association = local.basic_auth_enabled ? [{
-    event_type   = "viewer-request"
-    function_arn = aws_cloudfront_function.basic_auth[0].arn
-  }] : []
+  # Attach the Basic Auth CloudFront Function (viewer-request, when enabled)
+  # plus any consumer-supplied functions. See locals above.
+  function_association = local.function_associations
 
   depends_on = [module.acm_certificate]
 }
