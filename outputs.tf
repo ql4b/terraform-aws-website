@@ -2,7 +2,7 @@
 #   value = module.cdn
 # }
 
-output fqdn {
+output "fqdn" {
   value = local.fqdn
 }
 

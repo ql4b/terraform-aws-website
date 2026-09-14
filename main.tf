@@ -3,12 +3,12 @@ locals {
 }
 
 data "aws_route53_zone" "default" {
-  name = local.fqdn 
+  name = local.fqdn
 }
 
 module "acm_certificate" {
   source  = "cloudposse/acm-request-certificate/aws"
-  version = "0.18.0"  
+  version = "0.18.1"
 
   domain_name                       = local.fqdn
   subject_alternative_names         = []
@@ -18,10 +18,10 @@ module "acm_certificate" {
 
 module "cdn" {
   source  = "cloudposse/cloudfront-s3-cdn/aws"
-  version = "0.96.0"
-    
-  context     = module.this.context
-  attributes  = []
+  version = "2.1.1"
+
+  context    = module.this.context
+  attributes = []
 
   acm_certificate_arn               = module.acm_certificate.arn
   viewer_protocol_policy            = "redirect-to-https"
@@ -34,6 +34,6 @@ module "cdn" {
   aliases = local.fqdn != null ? [local.fqdn] : []
 
   website_enabled = false
-    
+
   depends_on = [module.acm_certificate]
 }
