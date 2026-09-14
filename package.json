@@ -1,5 +1,5 @@
 {
-  "name": "terraform-aws-analytics-pipeline",
+  "name": "terraform-aws-website",
   "private": true,
   "devDependencies": {
     "@semantic-release/github": "^11.0.6",
@@ -8,11 +8,11 @@
   "release": {
     "branches": [
       "main"
+    ],
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/github"
     ]
-  },
-  "plugins": [
-    "@semantic-release/commit-analyzer",
-    "@semantic-release/release-notes-generator",
-    "@semantic-release/github"
-  ]
+  }
 }
