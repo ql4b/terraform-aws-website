@@ -1,7 +1,11 @@
 locals {
   fqdn = var.fqdn
 
-  basic_auth_enabled = try(var.basic_auth.enabled, false)
+  # basic_auth is a sensitive variable (it carries the password), which taints
+  # anything derived from it. The *enabled* flag itself is not a secret, so
+  # unwrap just the boolean with nonsensitive() to keep the output usable
+  # without forcing consumers to mark their own outputs sensitive.
+  basic_auth_enabled = nonsensitive(try(var.basic_auth.enabled, false))
 
   # Basic Auth occupies the viewer-request event when enabled.
   basic_auth_association = local.basic_auth_enabled ? [{
