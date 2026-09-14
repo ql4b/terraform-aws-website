@@ -71,10 +71,14 @@ locals {
     : var.standard_logging_v2.destination_arn
   ) : null
 
-  # S3 delivery options only apply when the destination is an S3 bucket.
+  # S3 delivery options only apply when the consumer supplied an S3 bucket ARN
+  # as the destination. Gate on the *input* (var.standard_logging_v2.destination_arn),
+  # which is known at plan time -- not on local.slv2_destination_arn, which is
+  # the created log group ARN (unknown until apply) when the module makes the
+  # log group. A module-created destination is always CloudWatch Logs, never S3.
   slv2_is_s3_destination = local.slv2_enabled && (
-    local.slv2_destination_arn != null &&
-    can(regex("^arn:aws[a-z-]*:s3:", local.slv2_destination_arn))
+    var.standard_logging_v2.destination_arn != null &&
+    can(regex("^arn:aws[a-z-]*:s3:", var.standard_logging_v2.destination_arn))
   )
 }
 
