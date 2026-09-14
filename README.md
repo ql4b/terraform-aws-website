@@ -262,7 +262,7 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.4 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 6.13.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 2.2 |
@@ -271,14 +271,14 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Providers
 
 | Name | Version |
-| ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.64.0 |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 6.13.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
 | Name | Source | Version |
-| ---- | ------ | ------- |
+|------|--------|---------|
 | <a name="module_acm_certificate"></a> [acm\_certificate](#module\_acm\_certificate) | cloudposse/acm-request-certificate/aws | 0.18.1 |
 | <a name="module_cdn"></a> [cdn](#module\_cdn) | cloudposse/cloudfront-s3-cdn/aws | 2.1.1 |
 | <a name="module_this"></a> [this](#module\_this) | cloudposse/label/null | 0.25.0 |
@@ -286,7 +286,7 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Resources
 
 | Name | Type |
-| ---- | ---- |
+|------|------|
 | [aws_cloudfront_function.basic_auth](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_function) | resource |
 | [aws_cloudwatch_log_delivery.cf_access_logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_delivery) | resource |
 | [aws_cloudwatch_log_delivery_destination.cf_access_logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_delivery_destination) | resource |
@@ -298,7 +298,7 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_fqdn"></a> [fqdn](#input\_fqdn) | FQDN of the website | `string` | n/a | yes |
 | <a name="input_additional_tag_map"></a> [additional\_tag\_map](#input\_additional\_tag\_map) | Additional key-value pairs to add to each map in `tags_as_list_of_maps`. Not added to `tags` or `id`.<br/>This is for some rare cases where resources want additional configuration of tags<br/>and therefore take a list of maps with tag key, value, and additional configuration. | `map(string)` | `{}` | no |
 | <a name="input_attributes"></a> [attributes](#input\_attributes) | ID element. Additional attributes (e.g. `workers` or `cluster`) to add to `id`,<br/>in the order they appear in the list. New attributes are appended to the<br/>end of the list. The elements of the list are joined by the `delimiter`<br/>and treated as a single ID element. | `list(string)` | `[]` | no |
@@ -327,7 +327,7 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
+|------|-------------|
 | <a name="output_acm_certificate_arn"></a> [acm\_certificate\_arn](#output\_acm\_certificate\_arn) | ACM certificate ARN |
 | <a name="output_acm_certificate_domain_validation_options"></a> [acm\_certificate\_domain\_validation\_options](#output\_acm\_certificate\_domain\_validation\_options) | ACM certificate domain validation options |
 | <a name="output_basic_auth_enabled"></a> [basic\_auth\_enabled](#output\_basic\_auth\_enabled) | Whether Basic Auth gating is enabled on the distribution. |
