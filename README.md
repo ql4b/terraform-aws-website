@@ -19,7 +19,8 @@ Terraform module that creates a production-ready website with CloudFront CDN, S3
 
 ```hcl
 module "website" {
-  source = "git::https://github.com/ql4b/terraform-aws-website.git?ref=v2.0.0"
+  source  = "ql4b/website/aws"
+  version = "~> 2.0"
   
   fqdn = "example.com"
   
@@ -29,6 +30,9 @@ module "website" {
   }
 }
 ```
+
+> **Tip:** Always pin to a version constraint (e.g. `version = "~> 2.0"`). Browse
+> available versions on the [Terraform Registry](https://registry.terraform.io/modules/ql4b/website/aws/latest) page.
 
 ## Requirements
 
@@ -46,7 +50,8 @@ unless the correct credentials are supplied.
 
 ```hcl
 module "website" {
-  source = "git::https://github.com/ql4b/terraform-aws-website.git?ref=v2.0.0"
+  source  = "ql4b/website/aws"
+  version = "~> 2.0"
 
   fqdn = "qa.example.com"
 
@@ -87,7 +92,8 @@ resource "aws_cloudfront_function" "redirects" {
 }
 
 module "website" {
-  source = "git::https://github.com/ql4b/terraform-aws-website.git?ref=v2.0.0"
+  source  = "ql4b/website/aws"
+  version = "~> 2.0"
 
   fqdn = "example.com"
 
@@ -126,7 +132,8 @@ log group and delivers logs there:
 
 ```hcl
 module "website" {
-  source = "git::https://github.com/ql4b/terraform-aws-website.git?ref=v2.0.0"
+  source  = "ql4b/website/aws"
+  version = "~> 2.0"
 
   fqdn = "example.com"
 
@@ -145,7 +152,8 @@ Firehose delivery stream) instead of creating a log group — pass its ARN. When
 
 ```hcl
 module "website" {
-  source = "git::https://github.com/ql4b/terraform-aws-website.git?ref=v2.0.0"
+  source  = "ql4b/website/aws"
+  version = "~> 2.0"
 
   fqdn = "example.com"
 
