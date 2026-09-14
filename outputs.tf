@@ -37,6 +37,27 @@ output "cf_hosted_zone_id" {
   value       = module.cdn.cf_hosted_zone_id
 }
 
+# CloudFront standard logging (v2) outputs
+output "cf_log_group_name" {
+  description = "Name of the CloudWatch Logs log group created for CloudFront standard logging (v2). Null when logging is disabled or an external destination is used."
+  value       = one(aws_cloudwatch_log_group.cf_access_logs[*].name)
+}
+
+output "cf_log_group_arn" {
+  description = "ARN of the CloudWatch Logs log group created for CloudFront standard logging (v2). Null when logging is disabled or an external destination is used."
+  value       = one(aws_cloudwatch_log_group.cf_access_logs[*].arn)
+}
+
+output "cf_log_delivery_destination_arn" {
+  description = "ARN of the CloudWatch Logs delivery destination for CloudFront standard logging (v2). Null when logging is disabled."
+  value       = one(aws_cloudwatch_log_delivery_destination.cf_access_logs[*].arn)
+}
+
+output "cf_log_delivery_id" {
+  description = "ID of the CloudWatch Logs delivery for CloudFront standard logging (v2). Null when logging is disabled."
+  value       = one(aws_cloudwatch_log_delivery.cf_access_logs[*].id)
+}
+
 # Route53 outputs
 output "route53_zone_id" {
   description = "Route53 hosted zone ID"
