@@ -9,6 +9,22 @@ variable "default_root_object" {
   default     = "index.html"
 }
 
+variable "basic_auth" {
+  type = object({
+    enabled  = optional(bool, false)
+    username = optional(string, null)
+    password = optional(string, null)
+  })
+  description = "Gate the distribution behind HTTP Basic Auth via a CloudFront Function on viewer-request. Intended to keep non-production sites non-public; not a substitute for real authentication (the credential is embedded in the function source and Terraform state)."
+  default     = {}
+  sensitive   = true
+
+  validation {
+    condition     = !try(var.basic_auth.enabled, false) || (try(var.basic_auth.username, null) != null && try(var.basic_auth.password, null) != null)
+    error_message = "When basic_auth.enabled is true, both basic_auth.username and basic_auth.password must be set."
+  }
+}
+
 variable "standard_logging_v2_enabled" {
   type        = bool
   description = "Enable CloudFront standard logging (v2) via CloudWatch Logs vended log delivery. Independent of the CloudPosse module's legacy access logging."

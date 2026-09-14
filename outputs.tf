@@ -58,6 +58,17 @@ output "cf_log_delivery_id" {
   value       = one(aws_cloudwatch_log_delivery.cf_access_logs[*].id)
 }
 
+# Basic Auth outputs
+output "basic_auth_function_arn" {
+  description = "ARN of the Basic Auth CloudFront Function. Null when basic_auth is disabled."
+  value       = one(aws_cloudfront_function.basic_auth[*].arn)
+}
+
+output "basic_auth_enabled" {
+  description = "Whether Basic Auth gating is enabled on the distribution."
+  value       = local.basic_auth_enabled
+}
+
 # Route53 outputs
 output "route53_zone_id" {
   description = "Route53 hosted zone ID"

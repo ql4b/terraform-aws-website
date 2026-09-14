@@ -10,6 +10,7 @@ Terraform module that creates a production-ready website with CloudFront CDN, S3
 - **SSL Certificate** via ACM with automatic validation
 - **Route53 DNS** alias configuration
 - **HTTPS redirect** enforced
+- **Basic Auth** opt-in — gate non-production sites behind a CloudFront Function
 - **Standard logging (v2)** opt-in — CloudFront access logs via CloudWatch Logs vended log delivery
 - **Minimal configuration** - just provide FQDN
 
@@ -32,6 +33,40 @@ module "website" {
 
 - Route53 hosted zone for the domain must exist
 - AWS provider with appropriate permissions
+
+## Basic Auth (keep a site non-public)
+
+To keep a non-production site (e.g. a QA/staging environment) from being
+publicly accessible, enable HTTP Basic Auth. This attaches a CloudFront
+Function on `viewer-request` that challenges every request and returns `401`
+unless the correct credentials are supplied.
+
+```hcl
+module "website" {
+  source = "git::https://github.com/ql4b/terraform-aws-website.git?ref=v1.0.0"
+
+  fqdn = "qa.example.com"
+
+  basic_auth = {
+    enabled  = true
+    username = "qa"
+    password = var.qa_password # keep this out of source; pass via a TF_VAR_ or tfvars
+  }
+
+  context = {
+    namespace = "myorg"
+    name      = "website"
+  }
+}
+```
+
+**This is a coarse gate, not real authentication.** The expected credential is
+base64-encoded into the CloudFront Function source, so it is visible in the
+CloudFront console and stored in Terraform state. Use it to keep casual
+visitors and crawlers out of a dev/QA site — not to protect sensitive data. For
+real auth, use Lambda@Edge with a proper identity provider.
+
+Disabled by default. When enabled, both `username` and `password` are required.
 
 ## CloudFront Standard Logging (v2)
 
@@ -152,6 +187,11 @@ deliberate, separate feature.
 - `s3_bucket` - S3 bucket name for content
 - `cf_id` - CloudFront distribution ID
 - `website_url` - Complete website URL
+
+Basic Auth outputs:
+
+- `basic_auth_enabled` - Whether Basic Auth gating is enabled
+- `basic_auth_function_arn` - ARN of the Basic Auth CloudFront Function (null when disabled)
 
 Standard logging (v2) outputs (null when logging is disabled):
 

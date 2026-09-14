@@ -1,5 +1,7 @@
 locals {
   fqdn = var.fqdn
+
+  basic_auth_enabled = try(var.basic_auth.enabled, false)
 }
 
 data "aws_route53_zone" "default" {
@@ -34,6 +36,12 @@ module "cdn" {
   aliases = local.fqdn != null ? [local.fqdn] : []
 
   website_enabled = false
+
+  # Attach the Basic Auth CloudFront Function on viewer-request when enabled.
+  function_association = local.basic_auth_enabled ? [{
+    event_type   = "viewer-request"
+    function_arn = aws_cloudfront_function.basic_auth[0].arn
+  }] : []
 
   depends_on = [module.acm_certificate]
 }
@@ -133,4 +141,57 @@ resource "aws_cloudwatch_log_delivery" "cf_access_logs" {
   }
 
   tags = module.this.tags
+}
+
+
+# ---------------------------------------------------------------------------
+# Basic Auth (CloudFront Function, viewer-request)
+#
+# Gates the distribution behind HTTP Basic Auth to keep non-production sites
+# non-public. This is a coarse gate, NOT real authentication: the expected
+# credential is embedded (base64) in the function source and therefore visible
+# in the CloudFront console and in Terraform state. Do not use it to protect
+# sensitive data.
+#
+# The function runs on viewer-request and compares the Authorization header
+# against the expected "Basic <base64(user:pass)>" value, returning 401 with a
+# WWW-Authenticate challenge on mismatch. The code targets the cloudfront-js-2.0
+# runtime (ECMAScript 5.1-compatible; no template literals).
+# ---------------------------------------------------------------------------
+
+locals {
+  basic_auth_expected = local.basic_auth_enabled ? format(
+    "Basic %s",
+    base64encode(format("%s:%s", var.basic_auth.username, var.basic_auth.password))
+  ) : ""
+
+  basic_auth_code = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      var headers = request.headers;
+      var expected = "${local.basic_auth_expected}";
+
+      if (headers.authorization && headers.authorization.value === expected) {
+        return request;
+      }
+
+      return {
+        statusCode: 401,
+        statusDescription: 'Unauthorized',
+        headers: {
+          'www-authenticate': { value: 'Basic realm="Restricted"' }
+        }
+      };
+    }
+  EOT
+}
+
+resource "aws_cloudfront_function" "basic_auth" {
+  count = local.basic_auth_enabled ? 1 : 0
+
+  name    = "${module.this.id}-basic-auth"
+  runtime = "cloudfront-js-2.0"
+  comment = "Basic Auth gate for ${local.fqdn}"
+  publish = true
+  code    = local.basic_auth_code
 }
