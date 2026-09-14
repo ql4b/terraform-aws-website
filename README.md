@@ -32,8 +32,10 @@ module "website" {
 
 ## Requirements
 
+- Terraform `>= 1.4` (uses `terraform_data`)
+- AWS provider `>= 6.13.0` (required by `cloudfront-s3-cdn` 2.1.1)
 - Route53 hosted zone for the domain must exist
-- AWS provider with appropriate permissions
+- AWS credentials with appropriate permissions
 
 ## Basic Auth (keep a site non-public)
 
@@ -229,9 +231,10 @@ deliberate, separate feature.
 
 ## Outputs
 
+- `fqdn` - Site FQDN
 - `s3_bucket` - S3 bucket name for content
 - `cf_id` - CloudFront distribution ID
-- `website_url` - Complete website URL
+- `cf_domain_name` - CloudFront distribution domain name
 
 Basic Auth outputs:
 
