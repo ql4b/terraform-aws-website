@@ -1,6 +1,6 @@
 # Subdomain + API example — a site on a delegated subdomain zone created in the
 # same configuration, with an API path routed to a Lambda Function URL and a
-# 403 -> 404 error mapping for the S3 site.
+# custom 404 page for missing S3 objects.
 #
 # Requires an existing Route53 hosted zone for var.parent_zone_name; this
 # example creates the var.fqdn zone and delegates it from the parent.
@@ -74,12 +74,16 @@ module "website" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_except_host.id
   }]
 
-  custom_error_response = [{
-    error_code            = "403"
-    response_code         = 404
-    response_page_path    = "/404.html"
-    error_caching_min_ttl = 10
-  }]
+  # Serve the site's 404 page for missing objects (S3 answers 404 NoSuchKey;
+  # 403 covers bucket policies that hide missing keys).
+  custom_error_response = [
+    for code in ["403", "404"] : {
+      error_code            = code
+      response_code         = 404
+      response_page_path    = "/404.html"
+      error_caching_min_ttl = 10
+    }
+  ]
 
   context = {
     namespace = "myorg"

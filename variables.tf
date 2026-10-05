@@ -159,6 +159,6 @@ variable "custom_error_response" {
     response_code         = optional(number, null)
     response_page_path    = optional(string, null)
   }))
-  description = "Custom error responses for the distribution, e.g. map the 403 an S3 origin returns for a missing object to a 404 page. Passed through to cloudposse/cloudfront-s3-cdn."
+  description = "Custom error responses for the distribution, e.g. serve your own 404 page for missing S3 objects instead of S3's XML error body. Passed through to cloudposse/cloudfront-s3-cdn."
   default     = []
 }

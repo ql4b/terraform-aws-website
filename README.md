@@ -14,7 +14,7 @@ Terraform module that creates a production-ready website with CloudFront CDN, S3
 - **Custom CloudFront Functions** — attach your own redirect/rewrite functions
 - **Standard logging (v2)** opt-in — CloudFront access logs via CloudWatch Logs vended log delivery
 - **Custom origins and path behaviors** — route paths like `/v1/*` to an API or Lambda Function URL
-- **Custom error responses** — e.g. map S3's 403 for a missing object to a 404 page
+- **Custom error responses** — e.g. serve your own 404 page instead of S3's XML error
 - **Any hosted zone** — default lookup by FQDN, or pass a zone ID (e.g. a delegated subdomain zone)
 - **Minimal configuration** - just provide FQDN
 
@@ -119,13 +119,17 @@ module "website" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_except_host.id
   }]
 
-  # S3 (via OAI) answers 403 for a missing object; serve a real 404 instead.
-  custom_error_response = [{
-    error_code            = "403"
-    response_code         = 404
-    response_page_path    = "/404.html"
-    error_caching_min_ttl = 10
-  }]
+  # Serve the site's own 404 page for missing objects instead of S3's XML
+  # error body. With this module's origin access the bucket answers 404
+  # (NoSuchKey); map 403 as well if your bucket policy hides missing keys.
+  custom_error_response = [
+    for code in ["403", "404"] : {
+      error_code            = code
+      response_code         = 404
+      response_page_path    = "/404.html"
+      error_caching_min_ttl = 10
+    }
+  ]
 
   context = { namespace = "myorg", name = "website" }
 }
@@ -401,7 +405,7 @@ Standard logging (v2) outputs (null when logging is disabled):
 | <a name="input_basic_auth"></a> [basic\_auth](#input\_basic\_auth) | Gate the distribution behind HTTP Basic Auth via a CloudFront Function on viewer-request. Intended to keep non-production sites non-public; not a substitute for real authentication (the credential is embedded in the function source and Terraform state). | <pre>object({<br/>    enabled  = optional(bool, false)<br/>    username = optional(string, null)<br/>    password = optional(string, null)<br/>  })</pre> | `{}` | no |
 | <a name="input_cloudfront_function_associations"></a> [cloudfront\_function\_associations](#input\_cloudfront\_function\_associations) | Consumer-supplied CloudFront Functions to attach to the default cache behavior (e.g. redirects, header rewrites). The consumer owns the aws\_cloudfront\_function resource and passes its ARN. event\_type is 'viewer-request' or 'viewer-response'. Note: CloudFront allows only one function per event type; a 'viewer-request' entry here conflicts with basic\_auth (fold auth into your own function instead). | <pre>list(object({<br/>    event_type   = string<br/>    function_arn = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_context"></a> [context](#input\_context) | Single object for setting entire context at once.<br/>See description of individual variables for details.<br/>Leave string and numeric variables as `null` to use default value.<br/>Individual variable settings (non-null) override settings in context object,<br/>except for attributes, tags, and additional\_tag\_map, which are merged. | `any` | <pre>{<br/>  "additional_tag_map": {},<br/>  "attributes": [],<br/>  "delimiter": null,<br/>  "descriptor_formats": {},<br/>  "enabled": true,<br/>  "environment": null,<br/>  "id_length_limit": null,<br/>  "label_key_case": null,<br/>  "label_order": [],<br/>  "label_value_case": null,<br/>  "labels_as_tags": [<br/>    "unset"<br/>  ],<br/>  "name": null,<br/>  "namespace": null,<br/>  "regex_replace_chars": null,<br/>  "stage": null,<br/>  "tags": {},<br/>  "tenant": null<br/>}</pre> | no |
-| <a name="input_custom_error_response"></a> [custom\_error\_response](#input\_custom\_error\_response) | Custom error responses for the distribution, e.g. map the 403 an S3 origin returns for a missing object to a 404 page. Passed through to cloudposse/cloudfront-s3-cdn. | <pre>list(object({<br/>    error_caching_min_ttl = optional(number, null)<br/>    error_code            = string<br/>    response_code         = optional(number, null)<br/>    response_page_path    = optional(string, null)<br/>  }))</pre> | `[]` | no |
+| <a name="input_custom_error_response"></a> [custom\_error\_response](#input\_custom\_error\_response) | Custom error responses for the distribution, e.g. serve your own 404 page for missing S3 objects instead of S3's XML error body. Passed through to cloudposse/cloudfront-s3-cdn. | <pre>list(object({<br/>    error_caching_min_ttl = optional(number, null)<br/>    error_code            = string<br/>    response_code         = optional(number, null)<br/>    response_page_path    = optional(string, null)<br/>  }))</pre> | `[]` | no |
 | <a name="input_custom_origins"></a> [custom\_origins](#input\_custom\_origins) | Additional custom (non-S3) origins, e.g. a Lambda Function URL or an API host. Passed through to cloudposse/cloudfront-s3-cdn. Route paths to them with `ordered_cache`. | <pre>list(object({<br/>    domain_name                 = string<br/>    origin_id                   = string<br/>    origin_path                 = optional(string, "")<br/>    origin_access_control_id    = optional(string, null)<br/>    response_completion_timeout = optional(number, 0)<br/>    custom_headers = optional(list(object({<br/>      name  = string<br/>      value = string<br/>    })), [])<br/>    custom_origin_config = object({<br/>      http_port                = optional(number, 80)<br/>      https_port               = optional(number, 443)<br/>      origin_protocol_policy   = optional(string, "https-only")<br/>      origin_ssl_protocols     = optional(list(string), ["TLSv1.2"])<br/>      origin_keepalive_timeout = optional(number, 5)<br/>      origin_read_timeout      = optional(number, 30)<br/>    })<br/>    origin_shield = optional(object({<br/>      enabled = optional(bool, false)<br/>      region  = optional(string, null)<br/>    }), null)<br/>  }))</pre> | `[]` | no |
 | <a name="input_default_root_object"></a> [default\_root\_object](#input\_default\_root\_object) | Default root object for CloudFront | `string` | `"index.html"` | no |
 | <a name="input_delimiter"></a> [delimiter](#input\_delimiter) | Delimiter to be used between ID elements.<br/>Defaults to `-` (hyphen). Set to `""` to use no delimiter at all. | `string` | `null` | no |

@@ -2,8 +2,8 @@
 
 Deploys a website on a subdomain whose hosted zone is created (and delegated
 from the parent zone) in the same configuration, routes `/v1/*` to a custom
-origin such as a Lambda Function URL, and maps the S3 origin's 403 for a
-missing object to a 404 page.
+origin such as a Lambda Function URL, and serves a custom 404 page for
+missing objects.
 
 ```bash
 terraform apply \
