@@ -72,3 +72,93 @@ variable "standard_logging_v2" {
   description = "Configuration for CloudFront standard logging (v2). Only used when standard_logging_v2_enabled is true; sensible defaults make the zero-config case create a CloudWatch Logs log group."
   default     = {}
 }
+
+variable "route53_zone_id" {
+  type        = string
+  description = "ID of the Route53 hosted zone that holds `fqdn`. When null (default), the zone is looked up by name and must be named exactly `fqdn`. Set it to use a zone created in the same configuration (e.g. a delegated subdomain zone) or any zone whose name differs from `fqdn`."
+  default     = null
+}
+
+variable "custom_origins" {
+  type = list(object({
+    domain_name                 = string
+    origin_id                   = string
+    origin_path                 = optional(string, "")
+    origin_access_control_id    = optional(string, null)
+    response_completion_timeout = optional(number, 0)
+    custom_headers = optional(list(object({
+      name  = string
+      value = string
+    })), [])
+    custom_origin_config = object({
+      http_port                = optional(number, 80)
+      https_port               = optional(number, 443)
+      origin_protocol_policy   = optional(string, "https-only")
+      origin_ssl_protocols     = optional(list(string), ["TLSv1.2"])
+      origin_keepalive_timeout = optional(number, 5)
+      origin_read_timeout      = optional(number, 30)
+    })
+    origin_shield = optional(object({
+      enabled = optional(bool, false)
+      region  = optional(string, null)
+    }), null)
+  }))
+  description = "Additional custom (non-S3) origins, e.g. a Lambda Function URL or an API host. Passed through to cloudposse/cloudfront-s3-cdn. Route paths to them with `ordered_cache`."
+  default     = []
+}
+
+variable "ordered_cache" {
+  type = list(object({
+    target_origin_id = string
+    path_pattern     = string
+
+    allowed_methods    = optional(list(string), ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"])
+    cached_methods     = optional(list(string), ["GET", "HEAD"])
+    compress           = optional(bool, false)
+    trusted_signers    = optional(list(string), [])
+    trusted_key_groups = optional(list(string), [])
+
+    cache_policy_id          = optional(string, null)
+    origin_request_policy_id = optional(string, null)
+    realtime_log_config_arn  = optional(string, null)
+
+    viewer_protocol_policy     = optional(string, "redirect-to-https")
+    min_ttl                    = optional(number, 0)
+    default_ttl                = optional(number, 60)
+    max_ttl                    = optional(number, 31536000)
+    response_headers_policy_id = optional(string, "")
+
+    grpc_config = optional(object({
+      enabled = bool
+    }), { enabled = false })
+
+    forward_query_string              = optional(bool, false)
+    forward_header_values             = optional(list(string), [])
+    forward_cookies                   = optional(string, "none")
+    forward_cookies_whitelisted_names = optional(list(string), [])
+
+    lambda_function_association = optional(list(object({
+      event_type   = string
+      include_body = optional(bool, false)
+      lambda_arn   = string
+    })), [])
+
+    function_association = optional(list(object({
+      event_type   = string
+      function_arn = string
+    })), [])
+  }))
+  description = "Ordered cache behaviors, evaluated before the default (S3) behavior, in list order. `target_origin_id` must match a `custom_origins` entry's `origin_id`. Passed through to cloudposse/cloudfront-s3-cdn. Prefer `cache_policy_id` / `origin_request_policy_id` over the legacy `forward_*` fields."
+  default     = []
+}
+
+variable "custom_error_response" {
+  type = list(object({
+    error_caching_min_ttl = optional(number, null)
+    error_code            = string
+    response_code         = optional(number, null)
+    response_page_path    = optional(string, null)
+  }))
+  description = "Custom error responses for the distribution, e.g. serve your own 404 page for missing S3 objects instead of S3's XML error body. Passed through to cloudposse/cloudfront-s3-cdn."
+  default     = []
+}
