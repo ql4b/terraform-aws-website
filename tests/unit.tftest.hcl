@@ -236,3 +236,83 @@ run "basic_auth_plus_viewer_request_function_fails" {
     resource.terraform_data.function_association_guard,
   ]
 }
+
+# --- Hosted zone selection ---
+
+run "zone_looked_up_by_fqdn_by_default" {
+  command = plan
+
+  variables {
+    fqdn      = "example.com"
+    namespace = "test"
+    name      = "web"
+  }
+
+  assert {
+    condition     = data.aws_route53_zone.default.name == "example.com"
+    error_message = "Without route53_zone_id the zone must be looked up by fqdn"
+  }
+}
+
+run "zone_read_by_id_when_route53_zone_id_set" {
+  command = plan
+
+  variables {
+    fqdn            = "sub.example.com"
+    route53_zone_id = "ZSUBDELEGATED"
+    namespace       = "test"
+    name            = "web"
+  }
+
+  assert {
+    condition     = data.aws_route53_zone.default.zone_id == "ZSUBDELEGATED"
+    error_message = "With route53_zone_id set the zone must be read by that ID"
+  }
+
+  assert {
+    condition     = output.route53_zone_id == "ZSUBDELEGATED"
+    error_message = "route53_zone_id output must reflect the supplied zone"
+  }
+}
+
+# --- Custom origins, ordered behaviors, error responses ---
+
+run "custom_origin_with_ordered_behavior_plans" {
+  command = plan
+
+  variables {
+    fqdn      = "example.com"
+    namespace = "test"
+    name      = "web"
+
+    custom_origins = [{
+      domain_name          = "abc123.lambda-url.us-east-1.on.aws"
+      origin_id            = "api"
+      custom_origin_config = {}
+    }]
+
+    ordered_cache = [{
+      target_origin_id         = "api"
+      path_pattern             = "/v1/*"
+      allowed_methods          = ["GET", "HEAD", "OPTIONS"]
+      cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+      origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+    }]
+
+    custom_error_response = [{
+      error_code         = "403"
+      response_code      = 404
+      response_page_path = "/404.html"
+    }]
+  }
+
+  assert {
+    condition     = length(var.ordered_cache) == 1 && var.ordered_cache[0].default_ttl == 60
+    error_message = "ordered_cache optional attributes must take their defaults"
+  }
+
+  assert {
+    condition     = var.custom_origins[0].custom_origin_config.origin_protocol_policy == "https-only"
+    error_message = "custom_origin_config must default to https-only"
+  }
+}
