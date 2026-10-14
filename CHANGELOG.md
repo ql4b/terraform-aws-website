@@ -1,3 +1,8 @@
+## 2.1.0 (2026-10-14)
+
+* docs: auto-update terraform-docs ([b415b72](https://github.com/ql4b/terraform-aws-website/commit/b415b72))
+* feat: route53_zone_id, custom origins, ordered cache, error responses (#5) ([f780b8b](https://github.com/ql4b/terraform-aws-website/commit/f780b8b)), closes [#5](https://github.com/ql4b/terraform-aws-website/issues/5)
+
 ## <small>2.0.1 (2026-09-14)</small>
 
 * docs: auto-update terraform-docs ([baca14f](https://github.com/ql4b/terraform-aws-website/commit/baca14f))
