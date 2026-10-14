@@ -31,6 +31,8 @@ data "aws_route53_zone" "parent" {
 }
 
 resource "aws_route53_zone" "site" {
+  #checkov:skip=CKV2_AWS_38:Example only; DNSSEC signing is out of scope for a throwaway delegated demo zone.
+  #checkov:skip=CKV2_AWS_39:Example only; DNS query logging is out of scope for a throwaway delegated demo zone.
   name = var.fqdn
 }
 
