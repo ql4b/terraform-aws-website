@@ -36,8 +36,14 @@ resource "terraform_data" "function_association_guard" {
   }
 }
 
+# The hosted zone holding the site record. By default it is looked up by name
+# and must be named exactly `fqdn`. With route53_zone_id set, it is read by ID
+# instead, so a zone created in the same configuration (a delegated subdomain
+# zone, say) can be used — the read is deferred to apply when the ID is not yet
+# known.
 data "aws_route53_zone" "default" {
-  name = local.fqdn
+  name    = var.route53_zone_id == null ? local.fqdn : null
+  zone_id = var.route53_zone_id
 }
 
 module "acm_certificate" {
@@ -48,6 +54,9 @@ module "acm_certificate" {
   subject_alternative_names         = []
   process_domain_validation_options = true
   ttl                               = "300"
+
+  # null keeps the module's own lookup by domain name (the pre-2.1 behavior).
+  zone_id = var.route53_zone_id
 }
 
 module "cdn" {
@@ -60,7 +69,8 @@ module "cdn" {
   acm_certificate_arn               = module.acm_certificate.arn
   viewer_protocol_policy            = "redirect-to-https"
   dns_alias_enabled                 = true
-  parent_zone_name                  = data.aws_route53_zone.default.name
+  parent_zone_id                    = var.route53_zone_id
+  parent_zone_name                  = var.route53_zone_id == null ? data.aws_route53_zone.default.name : null
   cloudfront_access_logging_enabled = false
 
   default_root_object = var.default_root_object
@@ -72,6 +82,13 @@ module "cdn" {
   # Attach the Basic Auth CloudFront Function (viewer-request, when enabled)
   # plus any consumer-supplied functions. See locals above.
   function_association = local.function_associations
+
+  # Extra origins and path-routed behaviors (e.g. an API on a Function URL),
+  # plus custom error responses. All default to empty, leaving the plain
+  # S3 site unchanged.
+  custom_origins        = var.custom_origins
+  ordered_cache         = var.ordered_cache
+  custom_error_response = var.custom_error_response
 
   depends_on = [module.acm_certificate]
 }

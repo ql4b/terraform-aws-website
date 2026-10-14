@@ -13,6 +13,9 @@ Terraform module that creates a production-ready website with CloudFront CDN, S3
 - **Basic Auth** opt-in — gate non-production sites behind a CloudFront Function
 - **Custom CloudFront Functions** — attach your own redirect/rewrite functions
 - **Standard logging (v2)** opt-in — CloudFront access logs via CloudWatch Logs vended log delivery
+- **Custom origins and path behaviors** — route paths like `/v1/*` to an API or Lambda Function URL
+- **Custom error responses** — e.g. serve your own 404 page instead of S3's XML error
+- **Any hosted zone** — default lookup by FQDN, or pass a zone ID (e.g. a delegated subdomain zone)
 - **Minimal configuration** - just provide FQDN
 
 ## Usage
@@ -38,8 +41,105 @@ module "website" {
 
 - Terraform `>= 1.4` (uses `terraform_data`)
 - AWS provider `>= 6.13.0` (required by `cloudfront-s3-cdn` 2.1.1)
-- Route53 hosted zone for the domain must exist
+- Route53 hosted zone for the domain must exist (named exactly as `fqdn`, or
+  passed by ID via `route53_zone_id`)
 - AWS credentials with appropriate permissions
+
+## Hosted zone selection
+
+By default the module looks up the hosted zone **by name**, and that name must
+equal `fqdn`. To use any other zone — typically a subdomain zone you create and
+delegate in the same configuration — pass its ID:
+
+```hcl
+resource "aws_route53_zone" "app" {
+  name = "app.example.com"
+}
+
+resource "aws_route53_record" "delegation" {
+  zone_id = data.aws_route53_zone.parent.zone_id # example.com
+  name    = "app.example.com"
+  type    = "NS"
+  ttl     = 300
+  records = aws_route53_zone.app.name_servers
+}
+
+module "website" {
+  source  = "ql4b/website/aws"
+  version = "~> 2.1"
+
+  fqdn            = "app.example.com"
+  route53_zone_id = aws_route53_zone.app.zone_id
+
+  context = { namespace = "myorg", name = "app" }
+
+  # ACM validates through the new zone, so it must be delegated first.
+  depends_on = [aws_route53_record.delegation]
+}
+```
+
+With `route53_zone_id` set, the zone is read by ID (deferred to apply when the
+ID is not yet known), the certificate is validated in that zone, and the alias
+records are created there.
+
+## Custom origins, path behaviors, and error responses
+
+The default behavior always serves the S3 site. To route specific paths
+elsewhere — an API, a Lambda Function URL — add `custom_origins` and
+`ordered_cache` entries; to remap error codes, add `custom_error_response`. All
+three pass straight through to `cloudposse/cloudfront-s3-cdn` and default to
+empty, so an existing site is unchanged.
+
+```hcl
+data "aws_cloudfront_cache_policy" "disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_origin_request_policy" "all_except_host" {
+  name = "Managed-AllViewerExceptHostHeader"
+}
+
+module "website" {
+  source  = "ql4b/website/aws"
+  version = "~> 2.1"
+
+  fqdn = "example.com"
+
+  custom_origins = [{
+    domain_name          = "abc123.lambda-url.us-east-1.on.aws"
+    origin_id            = "api"
+    custom_origin_config = {} # https-only, TLSv1.2 by default
+  }]
+
+  ordered_cache = [{
+    target_origin_id         = "api"
+    path_pattern             = "/v1/*"
+    allowed_methods          = ["GET", "HEAD", "OPTIONS"]
+    cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_except_host.id
+  }]
+
+  # Serve the site's own 404 page for missing objects instead of S3's XML
+  # error body. With this module's origin access the bucket answers 404
+  # (NoSuchKey); map 403 as well if your bucket policy hides missing keys.
+  custom_error_response = [
+    for code in ["403", "404"] : {
+      error_code            = code
+      response_code         = 404
+      response_page_path    = "/404.html"
+      error_caching_min_ttl = 10
+    }
+  ]
+
+  context = { namespace = "myorg", name = "website" }
+}
+```
+
+Behaviors are matched in list order, before the default. Behind CloudFront a
+Function URL sees its own host in `Host`, so forward viewer headers *except*
+`Host` (as above). `custom_error_response` applies to the whole distribution,
+including the custom-origin paths. See
+[`examples/subdomain-api`](./examples/subdomain-api) for both features together.
 
 ## Basic Auth (keep a site non-public)
 
@@ -262,7 +362,7 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.4 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 6.13.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 2.2 |
@@ -271,14 +371,14 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 6.13.0 |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.67.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_acm_certificate"></a> [acm\_certificate](#module\_acm\_certificate) | cloudposse/acm-request-certificate/aws | 0.18.1 |
 | <a name="module_cdn"></a> [cdn](#module\_cdn) | cloudposse/cloudfront-s3-cdn/aws | 2.1.1 |
 | <a name="module_this"></a> [this](#module\_this) | cloudposse/label/null | 0.25.0 |
@@ -286,7 +386,7 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_cloudfront_function.basic_auth](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_function) | resource |
 | [aws_cloudwatch_log_delivery.cf_access_logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_delivery) | resource |
 | [aws_cloudwatch_log_delivery_destination.cf_access_logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_delivery_destination) | resource |
@@ -298,13 +398,15 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_fqdn"></a> [fqdn](#input\_fqdn) | FQDN of the website | `string` | n/a | yes |
 | <a name="input_additional_tag_map"></a> [additional\_tag\_map](#input\_additional\_tag\_map) | Additional key-value pairs to add to each map in `tags_as_list_of_maps`. Not added to `tags` or `id`.<br/>This is for some rare cases where resources want additional configuration of tags<br/>and therefore take a list of maps with tag key, value, and additional configuration. | `map(string)` | `{}` | no |
 | <a name="input_attributes"></a> [attributes](#input\_attributes) | ID element. Additional attributes (e.g. `workers` or `cluster`) to add to `id`,<br/>in the order they appear in the list. New attributes are appended to the<br/>end of the list. The elements of the list are joined by the `delimiter`<br/>and treated as a single ID element. | `list(string)` | `[]` | no |
 | <a name="input_basic_auth"></a> [basic\_auth](#input\_basic\_auth) | Gate the distribution behind HTTP Basic Auth via a CloudFront Function on viewer-request. Intended to keep non-production sites non-public; not a substitute for real authentication (the credential is embedded in the function source and Terraform state). | <pre>object({<br/>    enabled  = optional(bool, false)<br/>    username = optional(string, null)<br/>    password = optional(string, null)<br/>  })</pre> | `{}` | no |
 | <a name="input_cloudfront_function_associations"></a> [cloudfront\_function\_associations](#input\_cloudfront\_function\_associations) | Consumer-supplied CloudFront Functions to attach to the default cache behavior (e.g. redirects, header rewrites). The consumer owns the aws\_cloudfront\_function resource and passes its ARN. event\_type is 'viewer-request' or 'viewer-response'. Note: CloudFront allows only one function per event type; a 'viewer-request' entry here conflicts with basic\_auth (fold auth into your own function instead). | <pre>list(object({<br/>    event_type   = string<br/>    function_arn = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_context"></a> [context](#input\_context) | Single object for setting entire context at once.<br/>See description of individual variables for details.<br/>Leave string and numeric variables as `null` to use default value.<br/>Individual variable settings (non-null) override settings in context object,<br/>except for attributes, tags, and additional\_tag\_map, which are merged. | `any` | <pre>{<br/>  "additional_tag_map": {},<br/>  "attributes": [],<br/>  "delimiter": null,<br/>  "descriptor_formats": {},<br/>  "enabled": true,<br/>  "environment": null,<br/>  "id_length_limit": null,<br/>  "label_key_case": null,<br/>  "label_order": [],<br/>  "label_value_case": null,<br/>  "labels_as_tags": [<br/>    "unset"<br/>  ],<br/>  "name": null,<br/>  "namespace": null,<br/>  "regex_replace_chars": null,<br/>  "stage": null,<br/>  "tags": {},<br/>  "tenant": null<br/>}</pre> | no |
+| <a name="input_custom_error_response"></a> [custom\_error\_response](#input\_custom\_error\_response) | Custom error responses for the distribution, e.g. serve your own 404 page for missing S3 objects instead of S3's XML error body. Passed through to cloudposse/cloudfront-s3-cdn. | <pre>list(object({<br/>    error_caching_min_ttl = optional(number, null)<br/>    error_code            = string<br/>    response_code         = optional(number, null)<br/>    response_page_path    = optional(string, null)<br/>  }))</pre> | `[]` | no |
+| <a name="input_custom_origins"></a> [custom\_origins](#input\_custom\_origins) | Additional custom (non-S3) origins, e.g. a Lambda Function URL or an API host. Passed through to cloudposse/cloudfront-s3-cdn. Route paths to them with `ordered_cache`. | <pre>list(object({<br/>    domain_name                 = string<br/>    origin_id                   = string<br/>    origin_path                 = optional(string, "")<br/>    origin_access_control_id    = optional(string, null)<br/>    response_completion_timeout = optional(number, 0)<br/>    custom_headers = optional(list(object({<br/>      name  = string<br/>      value = string<br/>    })), [])<br/>    custom_origin_config = object({<br/>      http_port                = optional(number, 80)<br/>      https_port               = optional(number, 443)<br/>      origin_protocol_policy   = optional(string, "https-only")<br/>      origin_ssl_protocols     = optional(list(string), ["TLSv1.2"])<br/>      origin_keepalive_timeout = optional(number, 5)<br/>      origin_read_timeout      = optional(number, 30)<br/>    })<br/>    origin_shield = optional(object({<br/>      enabled = optional(bool, false)<br/>      region  = optional(string, null)<br/>    }), null)<br/>  }))</pre> | `[]` | no |
 | <a name="input_default_root_object"></a> [default\_root\_object](#input\_default\_root\_object) | Default root object for CloudFront | `string` | `"index.html"` | no |
 | <a name="input_delimiter"></a> [delimiter](#input\_delimiter) | Delimiter to be used between ID elements.<br/>Defaults to `-` (hyphen). Set to `""` to use no delimiter at all. | `string` | `null` | no |
 | <a name="input_descriptor_formats"></a> [descriptor\_formats](#input\_descriptor\_formats) | Describe additional descriptors to be output in the `descriptors` output map.<br/>Map of maps. Keys are names of descriptors. Values are maps of the form<br/>`{<br/>   format = string<br/>   labels = list(string)<br/>}`<br/>(Type is `any` so the map values can later be enhanced to provide additional options.)<br/>`format` is a Terraform format string to be passed to the `format()` function.<br/>`labels` is a list of labels, in order, to pass to `format()` function.<br/>Label values will be normalized before being passed to `format()` so they will be<br/>identical to how they appear in `id`.<br/>Default is `{}` (`descriptors` output will be empty). | `any` | `{}` | no |
@@ -317,7 +419,9 @@ Standard logging (v2) outputs (null when logging is disabled):
 | <a name="input_labels_as_tags"></a> [labels\_as\_tags](#input\_labels\_as\_tags) | Set of labels (ID elements) to include as tags in the `tags` output.<br/>Default is to include all labels.<br/>Tags with empty values will not be included in the `tags` output.<br/>Set to `[]` to suppress all generated tags.<br/>**Notes:**<br/>  The value of the `name` tag, if included, will be the `id`, not the `name`.<br/>  Unlike other `null-label` inputs, the initial setting of `labels_as_tags` cannot be<br/>  changed in later chained modules. Attempts to change it will be silently ignored. | `set(string)` | <pre>[<br/>  "default"<br/>]</pre> | no |
 | <a name="input_name"></a> [name](#input\_name) | ID element. Usually the component or solution name, e.g. 'app' or 'jenkins'.<br/>This is the only ID element not also included as a `tag`.<br/>The "name" tag is set to the full `id` string. There is no tag with the value of the `name` input. | `string` | `null` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | ID element. Usually an abbreviation of your organization name, e.g. 'eg' or 'cp', to help ensure generated IDs are globally unique | `string` | `null` | no |
+| <a name="input_ordered_cache"></a> [ordered\_cache](#input\_ordered\_cache) | Ordered cache behaviors, evaluated before the default (S3) behavior, in list order. `target_origin_id` must match a `custom_origins` entry's `origin_id`. Passed through to cloudposse/cloudfront-s3-cdn. Prefer `cache_policy_id` / `origin_request_policy_id` over the legacy `forward_*` fields. | <pre>list(object({<br/>    target_origin_id = string<br/>    path_pattern     = string<br/><br/>    allowed_methods    = optional(list(string), ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"])<br/>    cached_methods     = optional(list(string), ["GET", "HEAD"])<br/>    compress           = optional(bool, false)<br/>    trusted_signers    = optional(list(string), [])<br/>    trusted_key_groups = optional(list(string), [])<br/><br/>    cache_policy_id          = optional(string, null)<br/>    origin_request_policy_id = optional(string, null)<br/>    realtime_log_config_arn  = optional(string, null)<br/><br/>    viewer_protocol_policy     = optional(string, "redirect-to-https")<br/>    min_ttl                    = optional(number, 0)<br/>    default_ttl                = optional(number, 60)<br/>    max_ttl                    = optional(number, 31536000)<br/>    response_headers_policy_id = optional(string, "")<br/><br/>    grpc_config = optional(object({<br/>      enabled = bool<br/>    }), { enabled = false })<br/><br/>    forward_query_string              = optional(bool, false)<br/>    forward_header_values             = optional(list(string), [])<br/>    forward_cookies                   = optional(string, "none")<br/>    forward_cookies_whitelisted_names = optional(list(string), [])<br/><br/>    lambda_function_association = optional(list(object({<br/>      event_type   = string<br/>      include_body = optional(bool, false)<br/>      lambda_arn   = string<br/>    })), [])<br/><br/>    function_association = optional(list(object({<br/>      event_type   = string<br/>      function_arn = string<br/>    })), [])<br/>  }))</pre> | `[]` | no |
 | <a name="input_regex_replace_chars"></a> [regex\_replace\_chars](#input\_regex\_replace\_chars) | Terraform regular expression (regex) string.<br/>Characters matching the regex will be removed from the ID elements.<br/>If not set, `"/[^a-zA-Z0-9-]/"` is used to remove all characters other than hyphens, letters and digits. | `string` | `null` | no |
+| <a name="input_route53_zone_id"></a> [route53\_zone\_id](#input\_route53\_zone\_id) | ID of the Route53 hosted zone that holds `fqdn`. When null (default), the zone is looked up by name and must be named exactly `fqdn`. Set it to use a zone created in the same configuration (e.g. a delegated subdomain zone) or any zone whose name differs from `fqdn`. | `string` | `null` | no |
 | <a name="input_stage"></a> [stage](#input\_stage) | ID element. Usually used to indicate role, e.g. 'prod', 'staging', 'source', 'build', 'test', 'deploy', 'release' | `string` | `null` | no |
 | <a name="input_standard_logging_v2"></a> [standard\_logging\_v2](#input\_standard\_logging\_v2) | Configuration for CloudFront standard logging (v2). Only used when standard\_logging\_v2\_enabled is true; sensible defaults make the zero-config case create a CloudWatch Logs log group. | <pre>object({<br/>    # Destination. Leave destination_arn null to have the module create a<br/>    # CloudWatch Logs log group. Set it to an existing CloudWatch Logs log<br/>    # group, S3 bucket, or Firehose delivery stream ARN to deliver there<br/>    # instead (the module then creates no log group).<br/>    destination_arn = optional(string, null)<br/><br/>    # Only used when the module creates the log group (destination_arn == null).<br/>    log_group_name        = optional(string, null)<br/>    log_group_retention   = optional(number, 90)<br/>    log_group_kms_key_arn = optional(string, null)<br/><br/>    # Output format of delivered logs. One of: json, plain, w3c, raw, parquet.<br/>    output_format = optional(string, "json")<br/><br/>    # Ordered list of access-log record fields to deliver. Leave null to use<br/>    # the AWS default field set.<br/>    record_fields = optional(list(string), null)<br/><br/>    # S3-only delivery options (ignored for CloudWatch Logs / Firehose).<br/>    s3_suffix_path                 = optional(string, null)<br/>    s3_enable_hive_compatible_path = optional(bool, null)<br/>  })</pre> | `{}` | no |
 | <a name="input_standard_logging_v2_enabled"></a> [standard\_logging\_v2\_enabled](#input\_standard\_logging\_v2\_enabled) | Enable CloudFront standard logging (v2) via CloudWatch Logs vended log delivery. Independent of the CloudPosse module's legacy access logging. | `bool` | `false` | no |
@@ -327,7 +431,7 @@ Standard logging (v2) outputs (null when logging is disabled):
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_acm_certificate_arn"></a> [acm\_certificate\_arn](#output\_acm\_certificate\_arn) | ACM certificate ARN |
 | <a name="output_acm_certificate_domain_validation_options"></a> [acm\_certificate\_domain\_validation\_options](#output\_acm\_certificate\_domain\_validation\_options) | ACM certificate domain validation options |
 | <a name="output_basic_auth_enabled"></a> [basic\_auth\_enabled](#output\_basic\_auth\_enabled) | Whether Basic Auth gating is enabled on the distribution. |
