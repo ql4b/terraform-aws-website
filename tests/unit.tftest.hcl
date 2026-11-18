@@ -316,3 +316,52 @@ run "custom_origin_with_ordered_behavior_plans" {
     error_message = "custom_origin_config must default to https-only"
   }
 }
+
+# --- Default-behavior policies ---
+
+run "default_policies_default_to_null" {
+  command = plan
+
+  variables {
+    fqdn      = "example.com"
+    namespace = "test"
+    name      = "web"
+  }
+
+  assert {
+    condition     = var.default_cache_policy_id == null && var.default_origin_request_policy_id == null
+    error_message = "default behavior policies must default to null (existing sites unchanged)"
+  }
+}
+
+run "default_policies_both_set_plans" {
+  command = plan
+
+  variables {
+    fqdn      = "example.com"
+    namespace = "test"
+    name      = "web"
+
+    default_cache_policy_id          = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    default_origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+  }
+
+  assert {
+    condition     = var.default_cache_policy_id != null && var.default_origin_request_policy_id != null
+    error_message = "both policies must be accepted together"
+  }
+}
+
+run "default_origin_request_policy_requires_cache_policy" {
+  command = plan
+
+  variables {
+    fqdn      = "example.com"
+    namespace = "test"
+    name      = "web"
+
+    default_origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+  }
+
+  expect_failures = [var.default_origin_request_policy_id]
+}
