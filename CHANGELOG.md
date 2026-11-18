@@ -1,3 +1,8 @@
+## 2.2.0 (2026-11-18)
+
+* docs: auto-update terraform-docs ([cb9c214](https://github.com/ql4b/terraform-aws-website/commit/cb9c214))
+* feat: optional cache and origin request policies on the default behavior (#8) ([78cdef4](https://github.com/ql4b/terraform-aws-website/commit/78cdef4)), closes [#8](https://github.com/ql4b/terraform-aws-website/issues/8)
+
 ## 2.1.0 (2026-10-14)
 
 * docs: auto-update terraform-docs ([b415b72](https://github.com/ql4b/terraform-aws-website/commit/b415b72))
