@@ -82,6 +82,31 @@ With `route53_zone_id` set, the zone is read by ID (deferred to apply when the
 ID is not yet known), the certificate is validated in that zone, and the alias
 records are created there.
 
+## Policies on the default behavior
+
+By default the S3 behavior uses the CloudPosse module's legacy caching settings.
+To attach CloudFront policies to it, set `default_cache_policy_id` and, if
+needed, `default_origin_request_policy_id`. The main use is exposing the
+CloudFront-added `CloudFront-Viewer-*` headers (JA3/JA4, ASN, ...) to a
+viewer-request function: a function sees them only if the behavior's origin
+request policy lists them. CloudFront requires a cache policy whenever an origin
+request policy is set, and once a cache policy is set it alone governs the TTL
+and cache key, so pick one that matches the caching you want (for a static
+site, `Managed-CachingOptimized`). Both default to `null`, which leaves
+existing sites unchanged.
+
+```hcl
+module "website" {
+  source  = "ql4b/website/aws"
+  version = "~> 2.2"
+
+  fqdn = "example.com"
+
+  default_cache_policy_id          = data.aws_cloudfront_cache_policy.optimized.id
+  default_origin_request_policy_id = aws_cloudfront_origin_request_policy.viewer_headers.id
+}
+```
+
 ## Custom origins, path behaviors, and error responses
 
 The default behavior always serves the S3 site. To route specific paths

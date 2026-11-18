@@ -152,6 +152,23 @@ variable "ordered_cache" {
   default     = []
 }
 
+variable "default_cache_policy_id" {
+  type        = string
+  description = "Cache policy ID for the default (S3) behavior. Null keeps the CloudPosse module's legacy forwarded_values/TTL behavior, so existing sites are unchanged. When set, the policy alone governs caching (TTL and cache key). Required if default_origin_request_policy_id is set."
+  default     = null
+}
+
+variable "default_origin_request_policy_id" {
+  type        = string
+  description = "Origin request policy ID for the default (S3) behavior, e.g. one that exposes CloudFront-Viewer-* headers to a viewer-request function (those headers reach a function only if the behavior's origin request policy lists them). Requires default_cache_policy_id (CloudFront does not accept an origin request policy without a cache policy). Null leaves the default behavior unchanged."
+  default     = null
+
+  validation {
+    condition     = var.default_origin_request_policy_id == null || var.default_cache_policy_id != null
+    error_message = "default_origin_request_policy_id requires default_cache_policy_id to be set as well."
+  }
+}
+
 variable "custom_error_response" {
   type = list(object({
     error_caching_min_ttl = optional(number, null)

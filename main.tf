@@ -83,6 +83,11 @@ module "cdn" {
   # plus any consumer-supplied functions. See locals above.
   function_association = local.function_associations
 
+  # Optional policies for the default (S3) behavior. Both null by default, which
+  # keeps the legacy forwarded_values/TTL behavior unchanged.
+  cache_policy_id          = var.default_cache_policy_id
+  origin_request_policy_id = var.default_origin_request_policy_id
+
   # Extra origins and path-routed behaviors (e.g. an API on a Function URL),
   # plus custom error responses. All default to empty, leaving the plain
   # S3 site unchanged.
